@@ -1,25 +1,21 @@
 const express = require("express");
 const router = express.Router();
+const { StatusCodes } = require("http-status-codes");
+const {
+  joinUser,
+  login,
+  passwordResetRequest,
+  passwordReset,
+} = require("../controller/UserController");
+
 router.use(express.json());
 
-// register
-router.post("/join", [], (req, res) => {
-  res.json("회원가입");
-});
+router.post("/join", joinUser);
 
-// login
-router.post("/login", [], (req, res) => {
-  res.json("로그인");
-});
+router.post("/login", login);
 
-// request reset password
-router.post("/reset", [], (req, res) => {
-  res.json("비번 초기화 요청");
-});
+router.post("/reset", passwordResetRequest);
 
-// reset password
-router.put("/reset", [], (req, res) => {
-  res.json("비번 초기화");
-});
+router.put("/reset", passwordReset);
 
 module.exports = router;
