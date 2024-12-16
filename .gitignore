@@ -24,3 +24,7 @@ data.sql
 *.sln
 *.sw?
 .env
+
+test.css
+test.json
+test.html

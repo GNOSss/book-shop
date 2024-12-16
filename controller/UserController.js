@@ -5,6 +5,7 @@ const crypto = require("crypto"); // 비밀번호 암호화 모듈 (복호화 �
 const dotenv = require("dotenv");
 dotenv.config();
 
+// 회원가입
 const joinUser = (req, res) => {
   const { email, password } = req.body;
 
@@ -33,6 +34,7 @@ const joinUser = (req, res) => {
   });
 };
 
+// 로그인
 const login = (req, res) => {
   const { email, password } = req.body;
 

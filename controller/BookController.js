@@ -11,7 +11,7 @@ const allBooks = (req, res) => {
 
   let offset = limit * (currentPage - 1);
 
-  let sql = `SELECT * FROM books `;
+  let sql = `SELECT *, (SELECT count(*) FROM likes WHERE liked_book_id = books.id) AS 'likes' FROM books `;
   let values = [];
 
   if (category_id && newBook) {
@@ -49,19 +49,23 @@ const allBooks = (req, res) => {
 const bookDetail = (req, res) => {
   // req.params은 JSON형태이기 비구조화로 id에 할당이 가능하다.
   // 만약 아래 코드에서 parseInt를 적용하면 숫자타입이되고 .. 그럼 비구조화로 변수 할당 불가
-  let { id } = req.params;
+  let book_id = req.params.id;
+  let { user_id } = req.body;
 
-  let sql = `SELECT *
-      FROM 
-        books b
-      JOIN 
-        category c
-      ON 
-        b.category_id = c.id
-      WHERE b.id = ?;
+  let values = [user_id, book_id, book_id];
+
+  let sql = `SELECT * , 
+            (SELECT count(*) FROM likes WHERE liked_book_id = books.id) AS 'likes',
+            (SELECT EXISTS (SELECT * FROM likes WHERE user_id = ? AND liked_book_id = ?)) AS liked
+              FROM books 
+              JOIN 
+                  category
+                ON 
+                  books.category_id = category.category_id
+              WHERE books.id = ?
       `;
 
-  conn.query(sql, id, (err, results) => {
+  conn.query(sql, values, (err, results) => {
     if (err) {
       console.error(err);
       return res
