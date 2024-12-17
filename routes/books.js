@@ -4,6 +4,7 @@ router.use(express.json());
 const { allBooks, bookDetail } = require("../controller/BookController");
 
 // 카테고리별 도서 목록 조회
+router.get("/");
 
 // (카테고리별) 전체 도서 조회
 router.get("/", allBooks);
