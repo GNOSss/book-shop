@@ -1,6 +1,7 @@
-// const conn = require('../db');
 const db = require('mysql2/promise');
 const { StatusCodes } = require('http-status-codes');
+const ensureAuthorization = require('../middleware/Auth');
+const jwt = require('jsonwebtoken');
 
 const order = async (req, res) => {
   const conn = await db.createConnection({
@@ -12,46 +13,58 @@ const order = async (req, res) => {
     dateStrings: true,
   });
 
-  const { items, delivery, totalQuantity, totalPrice, userId, firstBookTitle } = req.body;
+  let authorization = ensureAuthorization(req, res);
 
-  // delivery
-  let sql = `INSERT INTO delivery (address, recelver , contact) VALUES (?, ?, ?)`;
-  let values = [delivery.address, delivery.recelver, delivery.contact];
+  if (authorization instanceof jwt.TokenExpiredError) {
+    return res.status(StatusCodes.UNAUTHORIZED).json({
+      message: '로그인 세션이 만료되었습니다. 다시 로그인 하세요.',
+    });
+  } else if (authorization instanceof jwt.JsonWebTokenError) {
+    return res.status(StatusCodes.BAD_REQUEST).json({
+      message: '잘못된 토큰입니다.',
+    });
+  } else {
+    const { items, delivery, totalQuantity, totalPrice, firstBookTitle } = req.body;
 
-  let [results] = await conn.execute(sql, values);
-  console.log(results);
+    // delivery
+    let sql = `INSERT INTO delivery (address, recelver , contact) VALUES (?, ?, ?)`;
+    let values = [delivery.address, delivery.recelver, delivery.contact];
 
-  let delivey_id = results.insertId;
+    let [results] = await conn.execute(sql, values);
+    console.log(results);
 
-  // orders
-  sql = `INSERT INTO orders (book_title, total_quantity, total_price, user_id, delivery_id)VALUES (?, ?, ?, ?, ?);`;
+    let delivey_id = results.insertId;
 
-  values = [firstBookTitle, totalQuantity, totalPrice, userId, delivey_id];
+    // orders
+    sql = `INSERT INTO orders (book_title, total_quantity, total_price, user_id, delivery_id)VALUES (?, ?, ?, ?, ?);`;
 
-  [results] = await conn.execute(sql, values);
+    values = [firstBookTitle, totalQuantity, totalPrice, authorization.id, delivey_id];
 
-  let order_id = results.insertId;
+    [results] = await conn.execute(sql, values);
 
-  // items를 가지고 , 장바구니에서 book_id, quantity 조회
-  sql = `SELECT book_id, quantity FROM cartItems WHERE id IN (?)`;
-  let [orderItems] = await conn.query(sql, [items]);
+    let order_id = results.insertId;
 
-  // orderedBook
-  sql = `INSERT INTO orderedBook (order_id, book_id, quantity) VALUES ?`;
+    // items를 가지고 , 장바구니에서 book_id, quantity 조회
+    sql = `SELECT book_id, quantity FROM cartItems WHERE id IN (?)`;
+    let [orderItems] = await conn.query(sql, [items]);
 
-  values = [];
+    // orderedBook
+    sql = `INSERT INTO orderedBook (order_id, book_id, quantity) VALUES ?`;
 
-  // items... 배열 : 요소들을 하나씩 꺼내서 (forEach문을 사용)
-  orderItems.forEach((item) => {
-    values.push([order_id, item.book_id, item.quantity]);
-  });
+    values = [];
 
-  [results] = await conn.query(sql, [values]);
+    // items... 배열 : 요소들을 하나씩 꺼내서 (forEach문을 사용)
+    orderItems.forEach((item) => {
+      values.push([order_id, item.book_id, item.quantity]);
+    });
 
-  // removeCartItems
-  let result = await removeCartItems(conn, items);
+    [results] = await conn.query(sql, [values]);
 
-  return res.status(StatusCodes.OK).json(result);
+    // removeCartItems
+    let result = await removeCartItems(conn, items);
+
+    return res.status(StatusCodes.OK).json(result);
+  }
 };
 
 // delete cartItems
@@ -73,13 +86,25 @@ const getOrders = async (req, res) => {
     dateStrings: true,
   });
 
-  let sql = `SELECT o.id, o.created_at, d.address, d.recelver, d.contact,
-              o.book_title, o.total_quantity, o.total_price, 
+  let authorization = ensureAuthorization(req, res);
+
+  if (authorization instanceof jwt.TokenExpiredError) {
+    return res.status(StatusCodes.UNAUTHORIZED).json({
+      message: '로그인 세션이 만료되었습니다. 다시 로그인 하세요.',
+    });
+  } else if (authorization instanceof jwt.JsonWebTokenError) {
+    return res.status(StatusCodes.BAD_REQUEST).json({
+      message: '잘못된 토큰입니다.',
+    });
+  } else {
+    let sql = `SELECT o.id, o.created_at, d.address, d.recelver, d.contact,
+              o.book_title, o.total_quantity, o.total_price
             FROM orders o JOIN delivery d ON o.delivery_id = d.id`;
 
-  let [rows, fields] = await conn.query(sql);
+    let [rows, fields] = await conn.query(sql);
 
-  return res.status(StatusCodes.OK).json(rows);
+    return res.status(StatusCodes.OK).json(rows);
+  }
 };
 
 const getOrderDetail = async (req, res) => {
@@ -92,15 +117,27 @@ const getOrderDetail = async (req, res) => {
     dateStrings: true,
   });
 
-  const { id } = req.params;
+  let authorization = ensureAuthorization(req, res);
 
-  let sql = `SELECT o.book_id , b.title , b.author, b.price, o.quantity
+  if (authorization instanceof jwt.TokenExpiredError) {
+    return res.status(StatusCodes.UNAUTHORIZED).json({
+      message: '로그인 세션이 만료되었습니다. 다시 로그인 하세요.',
+    });
+  } else if (authorization instanceof jwt.JsonWebTokenError) {
+    return res.status(StatusCodes.BAD_REQUEST).json({
+      message: '잘못된 토큰입니다.',
+    });
+  } else {
+    const orderId = req.params.id;
+
+    let sql = `SELECT o.book_id , b.title , b.author, b.price, o.quantity
             FROM orderedBook o JOIN books b ON o.book_id = b.id
             WHERE o.order_id = ?`;
 
-  let [rows, fields] = await conn.query(sql, [id]);
+    let [rows, fields] = await conn.query(sql, [orderId]);
 
-  return res.status(StatusCodes.OK).json(rows);
+    return res.status(StatusCodes.OK).json(rows);
+  }
 };
 
 module.exports = { order, getOrders, getOrderDetail };
